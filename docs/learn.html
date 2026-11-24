@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TokenForge, explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: patient teacher; plain words, one idea per section, no jargon left undefined.
+   IDEA: a printed field guide that walks one request through the machine, stop by stop.
+   PICTURE: the request-journey diagram, large, lit up one stop at a time by Next/Back.
+   COLOUR and TYPE: white, ink #14161a, deep teal #0b5d63 for "where we are"; Libre Caslon titles, Inter body.
+   LAYOUT: title band, then the journey diagram with its step card, then short sections down the page. */
+:root{color-scheme:light dark;
+  --bg:light-dark(#ffffff,#0d1416);--ink:light-dark(#14161a,#e8ecec);--soft:light-dark(#555b62,#a9b4b6);
+  --rule:light-dark(#dfe2e4,#24302f);--panel:light-dark(#f4f6f6,#132022);
+  --teal:light-dark(#0b5d63,#4fb3b9);--teal-wash:light-dark(#e3f0f0,#12373a);
+  --warn:light-dark(#a3471b,#f08a5d)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16.5px/1.6 Inter,system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(28px,4vw,56px) max(5vw,16px)}
+.wrap{max-width:1180px;margin:0 auto}
+h1,h2{font-family:"Libre Caslon Text",Georgia,serif;font-weight:400;line-height:1.1;text-wrap:balance;margin:0 0 .4em}
+h1{font-size:clamp(34px,5vw,50px)}
+h2{font-size:clamp(26px,3.2vw,34px)}
+h3{font-size:17px;margin:0 0 .3em}
+p{max-width:68ch;margin:0 0 1em}
+.lede{font-size:18px;color:var(--soft);max-width:62ch}
+.rule{border-top:1px solid var(--rule)}
+nav.scroll{display:flex;gap:6px 20px;flex-wrap:wrap;font-size:14px;margin-top:18px}
+nav a{color:var(--teal);text-decoration:none}nav a:hover{text-decoration:underline}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px}
+code{background:var(--panel);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+pre{background:var(--panel);padding:12px 14px;border-radius:8px;margin:0 0 1em;line-height:1.5;overflow-x:auto}
+/* journey */
+.journey{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:28px;align-items:start}
+@media(max-width:900px){.journey{grid-template-columns:1fr}}
+figure{margin:0}
+figcaption{font-size:14px;color:var(--soft);margin-top:8px}
+svg.diagram{width:100%;height:auto;display:block;color:var(--ink)}
+.diagram-scroll{overflow-x:auto}.phone-hint{display:none}@media(max-width:600px){.phone-hint{display:inline}}
+@media(max-width:600px){svg.diagram{width:680px;max-width:none}}
+.node rect{fill:var(--bg);stroke:var(--rule);stroke-width:1.5;transition:fill .25s,stroke .25s}
+.node text{fill:var(--ink);font:500 13px Inter,sans-serif}
+.node .sub{fill:var(--soft);font-size:11.5px;font-weight:400}
+.node.on rect{fill:var(--teal-wash);stroke:var(--teal);stroke-width:2.5}
+.node.on text{fill:var(--teal)}
+.edge{stroke:var(--soft);stroke-width:1.5;fill:none;transition:stroke .25s}
+.edge.on{stroke:var(--teal);stroke-width:2.5}
+.elabel{fill:var(--soft);font:12px Inter,sans-serif}
+.box-gw{fill:var(--panel);stroke:var(--rule)}
+.gwlabel{fill:var(--soft);font:600 12px Inter,sans-serif}
+.card{background:var(--panel);border-radius:12px;padding:20px 22px;min-height:340px;display:flex;flex-direction:column}
+.stepno{font-size:14px;color:var(--teal);font-weight:600;margin-bottom:4px}
+.card h3{font-family:"Libre Caslon Text",Georgia,serif;font-weight:400;font-size:24px;line-height:1.2;margin-bottom:10px}
+.card .body{flex:1}
+.card .file{font-size:14px;color:var(--soft);margin-top:6px}
+.controls{display:flex;gap:10px;align-items:center;margin-top:16px}
+button{font:500 15px Inter,sans-serif;min-height:44px;padding:0 18px;border-radius:8px;border:1.5px solid var(--teal);background:var(--teal);color:var(--bg);cursor:pointer}
+button.ghost{background:transparent;color:var(--teal)}
+button:disabled{opacity:.4;cursor:default}
+button:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots span{width:8px;height:8px;border-radius:50%;background:var(--rule)}
+.dots span.on{background:var(--teal)}
+/* analogy table */
+table{border-collapse:collapse;width:100%;font-size:15px}
+th{text-align:left;font-weight:600;border-bottom:1.5px solid var(--ink);padding:8px 10px}
+td{border-bottom:1px solid var(--rule);padding:9px 10px;vertical-align:top}
+td:first-child{font-weight:500;white-space:nowrap}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}
+@media(max-width:800px){.two{grid-template-columns:1fr}}
+.fig{position:relative;min-height:190px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.formula{font-family:"Libre Caslon Text",Georgia,serif;font-size:20px;background:var(--teal-wash);color:var(--ink);padding:14px 18px;border-radius:10px;margin:0 0 1em;max-width:68ch}
+.phases{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;counter-reset:p}
+@media(max-width:900px){.phases{grid-template-columns:1fr}}
+.phase{border-top:3px solid var(--rule);padding-top:12px}
+.phase.done{border-color:var(--teal)}
+.phase b{display:block;font-size:14px;color:var(--soft);font-weight:600}
+.phase.done b{color:var(--teal)}
+.phase p{font-size:15px;margin:4px 0 0}
+dl{display:grid;grid-template-columns:minmax(0,12em) minmax(0,1fr);gap:10px 20px;margin:0}
+dt{font-weight:600}dd{margin:0;color:var(--soft)}
+@media(max-width:600px){dl{grid-template-columns:1fr;gap:2px}dd{margin-bottom:10px}table{font-size:14px}td:first-child{white-space:normal}
+  .stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:1px solid var(--rule)}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:8em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;white-space:normal;color:var(--soft);font-weight:400}}
+html{scroll-padding-top:24px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+</head>
+<body>
+
+<header class="band">
+  <div class="wrap">
+    <h1>TokenForge, explained step by step</h1>
+    <p class="lede">You built a small version of what companies like Jarvislabs, OpenAI and Together AI run: a front desk that sits between apps and AI models. This page walks one request through it, then explains the numbers you saw.</p>
+    <nav class="scroll" aria-label="Sections">
+      <a href="#journey">1. Follow one request</a>
+      <a href="#analogy">2. The restaurant version</a>
+      <a href="#speed">3. Why the first word is slow</a>
+      <a href="#numbers">4. Reading your benchmark</a>
+      <a href="#files">5. Which file does what</a>
+      <a href="#next">6. Where this is going</a>
+      <a href="#words">7. Word list</a>
+    </nav>
+  </div>
+</header>
+
+<section class="band rule" id="journey">
+  <div class="wrap">
+    <h2>Follow one request through the system</h2>
+    <p>Press <b>Next</b>. Each step lights up the part of the diagram that is working, and names the file where that code lives.</p>
+    <div class="journey">
+      <figure>
+        <div class="diagram-scroll"><svg class="diagram" viewBox="0 0 860 400" role="img" aria-label="A request goes from your app into the TokenForge gateway, which checks the key, applies the rate limit, finds the model, gets tokens from the model, streams them back, and records usage that the dashboard reads.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+          </defs>
+          <rect class="box-gw" x="160" y="30" width="470" height="210" rx="14"/>
+          <text class="gwlabel" x="180" y="56">TokenForge gateway (gateway/main.py)</text>
+
+          <g class="node" id="n-app"><rect x="10" y="105" width="120" height="70" rx="10"/><text x="70" y="136" text-anchor="middle">Your app</text><text class="sub" x="70" y="155" text-anchor="middle">or benchmark</text></g>
+          <g class="node" id="n-key"><rect x="180" y="105" width="100" height="70" rx="10"/><text x="230" y="136" text-anchor="middle">Check key</text><text class="sub" x="230" y="155" text-anchor="middle">who are you?</text></g>
+          <g class="node" id="n-rate"><rect x="292" y="105" width="100" height="70" rx="10"/><text x="342" y="136" text-anchor="middle">Rate limit</text><text class="sub" x="342" y="155" text-anchor="middle">too many?</text></g>
+          <g class="node" id="n-find"><rect x="404" y="105" width="100" height="70" rx="10"/><text x="454" y="136" text-anchor="middle">Find model</text><text class="sub" x="454" y="155" text-anchor="middle">models.json</text></g>
+          <g class="node" id="n-stream"><rect x="404" y="185" width="210" height="44" rx="10"/><text x="509" y="212" text-anchor="middle">Stream words back</text></g>
+          <g class="node" id="n-model"><rect x="690" y="105" width="160" height="70" rx="10"/><text x="770" y="136" text-anchor="middle">AI model</text><text class="sub" x="770" y="155" text-anchor="middle">mock now, GPU later</text></g>
+          <g class="node" id="n-db"><rect x="300" y="300" width="150" height="60" rx="10"/><text x="375" y="326" text-anchor="middle">usage.db</text><text class="sub" x="375" y="344" text-anchor="middle">the bill</text></g>
+          <g class="node" id="n-dash"><rect x="560" y="300" width="150" height="60" rx="10"/><text x="635" y="326" text-anchor="middle">Dashboard</text><text class="sub" x="635" y="344" text-anchor="middle">/dashboard</text></g>
+
+          <line class="edge" id="e-in" x1="130" y1="140" x2="178" y2="140" marker-end="url(#arrow)" color="currentColor"/>
+          <line class="edge" id="e-kr" x1="280" y1="140" x2="290" y2="140" marker-end="url(#arrow)"/>
+          <line class="edge" id="e-rf" x1="392" y1="140" x2="402" y2="140" marker-end="url(#arrow)"/>
+          <line class="edge" id="e-fm" x1="504" y1="140" x2="688" y2="140" marker-end="url(#arrow)"/>
+          <text class="elabel" x="596" y="130" text-anchor="middle">prompt</text>
+          <path class="edge" id="e-ms" d="M770,175 L770,207 L616,207" marker-end="url(#arrow)"/>
+          <text class="elabel" x="700" y="200" text-anchor="middle">tokens</text>
+          <path class="edge" id="e-out" d="M404,207 L70,207 L70,177" marker-end="url(#arrow)"/>
+          <text class="elabel" x="250" y="200" text-anchor="middle">words, one by one</text>
+          <path class="edge" id="e-db" d="M470,229 L470,265 L375,265 L375,298" marker-end="url(#arrow)"/>
+          <text class="elabel" x="484" y="258">tokens, time, cost</text>
+          <line class="edge" id="e-dash" x1="450" y1="330" x2="558" y2="330" marker-end="url(#arrow)"/>
+          <text class="elabel" x="504" y="320" text-anchor="middle">reads</text>
+        </svg></div>
+        <figcaption>Every request takes the same path. A request that fails a check stops early and gets an error code instead.<span class="phone-hint"> Swipe the diagram sideways to see all of it.</span></figcaption>
+      </figure>
+
+      <div class="card" aria-live="polite">
+        <div class="stepno" id="stepno"></div>
+        <h3 id="steptitle"></h3>
+        <div class="body" id="stepbody"></div>
+        <div class="file" id="stepfile"></div>
+        <div class="controls">
+          <button class="ghost" id="back" type="button">Back</button>
+          <button id="next" type="button">Next</button>
+          <div class="dots" id="dots" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band rule" id="analogy">
+  <div class="wrap">
+    <h2>The same thing, as a restaurant</h2>
+    <p>If the diagram still feels abstract, map each part to a restaurant. The kitchen is expensive, so the front desk protects it and keeps the bill.</p>
+    <table class="stack">
+      <thead><tr><th>TokenForge part</th><th>Restaurant</th><th>Why it exists</th></tr></thead>
+      <tbody id="analogy-rows"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="band rule" id="speed">
+  <div class="wrap two">
+    <div>
+      <h2>Why the first word is slow and the rest are fast</h2>
+      <p>A language model works in two phases.</p>
+      <p><b>1. Prefill (reading).</b> The model reads your whole question at once before it can say anything. The time this takes is <b>TTFT</b>, time to first token. A bigger model or a longer question means a longer wait.</p>
+      <p><b>2. Decode (writing).</b> The model then writes one token at a time, each taking about the same time. That time is <b>TPOT</b>, time per output token.</p>
+      <p>A token is a piece of a word, about 4 letters of English. "Inference" might be two tokens.</p>
+    </div>
+    <div>
+      <figure>
+        <div class="fig"><svg id="timeline" role="img" aria-label="Timeline: a long prefill bar labeled TTFT, followed by many short decode ticks, one per token, each lasting TPOT."></svg></div>
+        <figcaption>mock-large from your run: 305 ms of reading, then about 40 words at 27 ms each.</figcaption>
+      </figure>
+      <p class="formula">Total time ≈ TTFT + (tokens × TPOT)<br>305 + (40 × 27) ≈ 1,385 ms</p>
+      <p>Your benchmark measured 1,415 ms, so the formula holds. Being able to do this sum in an interview shows you know where latency comes from.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band rule" id="numbers">
+  <div class="wrap two">
+    <div>
+      <h2>Reading your benchmark numbers</h2>
+      <p>The benchmark fires many requests at the same time, like many users, and times each one. It then sorts the times from fastest to slowest.</p>
+      <p><b>p50</b> is the middle one: a typical user. <b>p95</b> is near the slow end: 1 in 20 users waits at least this long. Companies watch p95 because those are the users who complain.</p>
+      <p><b>Throughput</b> is the total words per second across all users together. On a real GPU you pay by the hour, so higher throughput means cheaper words.</p>
+    </div>
+    <div>
+      <figure>
+        <div class="fig"><svg id="pct" role="img" aria-label="Twenty requests sorted by time. The middle one is p50; the slowest one in twenty is p95."></svg></div>
+        <figcaption>Twenty example requests sorted fastest to slowest.</figcaption>
+      </figure>
+      <table>
+        <thead><tr><th>Your result</th><th style="text-align:right">mock-small</th><th style="text-align:right">mock-large</th></tr></thead>
+        <tbody>
+          <tr><td>TTFT p50</td><td style="text-align:right">83 ms</td><td style="text-align:right">305 ms</td></tr>
+          <tr><td>TPOT</td><td style="text-align:right">9.7 ms</td><td style="text-align:right">27.2 ms</td></tr>
+          <tr><td>Total time p50</td><td style="text-align:right">474 ms</td><td style="text-align:right">1,415 ms</td></tr>
+          <tr><td>Total time p95</td><td style="text-align:right">640 ms</td><td style="text-align:right">1,881 ms</td></tr>
+          <tr><td>Throughput</td><td style="text-align:right">658 tok/s</td><td style="text-align:right">194 tok/s</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="band rule" id="files">
+  <div class="wrap">
+    <h2>Which file does what</h2>
+    <p>Open these in this order. Each one is short, under 150 lines.</p>
+    <table class="stack">
+      <thead><tr><th>File</th><th>What it does</th><th>Diagram part</th></tr></thead>
+      <tbody id="file-rows"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="band rule" id="next">
+  <div class="wrap">
+    <h2>Where this is going</h2>
+    <p>Right now the "AI model" is fake: it waits and returns fixed words, so you can learn without paying for a GPU. Later phases replace it with a real one.</p>
+    <div class="phases" id="phases"></div>
+  </div>
+</section>
+
+<section class="band rule" id="words">
+  <div class="wrap">
+    <h2>Word list</h2>
+    <dl id="glossary"></dl>
+  </div>
+</section>
+
+<script>
+{
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const steps = [
+  {t:"The big picture", on:[], body:`<p>Apps want to use AI models, but running a model needs a GPU, and GPUs are expensive. So one company runs the models and many apps share them over the internet.</p><p>TokenForge is the <b>front desk</b> in between. It decides who may use the model, how much, and what they owe.</p>`, file:"Press Next to send a request."},
+  {t:"Your app sends a request", on:["n-app","e-in"], body:`<p>An app (or our benchmark) sends a message over the internet. It is plain text in a format called JSON:</p><pre>POST /v1/chat/completions
+Authorization: Bearer sk-dev-123
+
+{"model": "mock-small",
+ "messages": [{"role": "user",
+               "content": "hi"}]}</pre><p>This is the same format OpenAI uses, so any app built for OpenAI works with TokenForge.</p>`, file:"Sent by: bench/benchmark.py, or curl"},
+  {t:"Check the key", on:["n-key"], body:`<p>The <code>sk-dev-123</code> part is an <b>API key</b>, like a membership card. The gateway looks it up in <code>models.json</code>.</p><p>Unknown key? The request stops here with error <b>401</b>.</p>`, file:"Code: auth() in gateway/main.py"},
+  {t:"Check the rate limit", on:["n-rate","e-kr"], body:`<p>Each key may only send so many requests per minute. The free key gets 5, the dev key 60. This stops one user from hogging the GPU.</p><p>It works like a jar of 5 coins: each request spends one, and coins slowly refill. Empty jar means error <b>429</b>.</p>`, file:"Code: gateway/ratelimit.py"},
+  {t:"Find the model", on:["n-find","e-rf"], body:`<p>The request names a model, such as <code>mock-small</code>. The gateway looks it up in <code>models.json</code> to learn where it runs and its price.</p><p>Unknown model? Error <b>404</b>.</p>`, file:"Config: models.json"},
+  {t:"The model writes the answer", on:["n-model","e-fm"], body:`<p>The gateway passes the question to the model. The model first <b>reads</b> it (slow), then <b>writes</b> the answer one token at a time (fast).</p><p>Today this is <code>MockBackend</code>, a fake that just waits and returns sample words. In Phase 4 it becomes a real model on a rented GPU, and none of the other code changes.</p>`, file:"Code: gateway/backends.py"},
+  {t:"Stream the words back", on:["n-stream","e-ms","e-out","n-app"], body:`<p>Instead of waiting for the full answer, the gateway sends each word the moment it arrives. This is called <b>streaming</b>. It is why ChatGPT's text appears as if it is being typed.</p><p>The benchmark notes when the first word arrives (TTFT) and when the last one does.</p>`, file:"Code: sse() inside gateway/main.py"},
+  {t:"Write down the bill", on:["n-db","e-db"], body:`<p>When the answer is done, the gateway saves one row: which key, which model, how many tokens went in and out, how long it took, and the cost.</p><p>Cost = tokens × the price in <code>models.json</code>. Real companies bill customers from exactly this kind of table.</p>`, file:"Code: gateway/usage.py, saved in usage.db"},
+  {t:"The dashboard reads the bill", on:["n-dash","e-dash","n-db"], body:`<p>The dashboard page asks <code>/v1/stats</code> for totals every 3 seconds and draws the charts. Nothing new is measured here; it only summarises the rows from the previous step.</p><p>That is the whole system. Every request repeats steps 1 to 7.</p>`, file:"Page: gateway/static/dashboard.html"}
+];
+let i = 0;
+const allIds = [...document.querySelectorAll(".node,.edge")];
+const dots = document.getElementById("dots");
+dots.innerHTML = steps.map(() => "<span></span>").join("");
+function show(){
+  const s = steps[i];
+  allIds.forEach(el => el.classList.toggle("on", s.on.includes(el.id)));
+  document.getElementById("stepno").textContent = i ? `Step ${i} of ${steps.length-1}` : "Start here";
+  document.getElementById("steptitle").textContent = s.t;
+  document.getElementById("stepbody").innerHTML = s.body;
+  document.getElementById("stepfile").textContent = s.file;
+  document.getElementById("back").disabled = i === 0;
+  const nx = document.getElementById("next");
+  nx.textContent = i === steps.length-1 ? "Start over" : "Next";
+  [...dots.children].forEach((d,k) => d.classList.toggle("on", k <= i));
+}
+document.getElementById("next").addEventListener("click", () => { i = (i + 1) % steps.length; show(); });
+document.getElementById("back").addEventListener("click", () => { if (i) { i--; show(); } });
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input,textarea")) return;
+  if (e.key === "ArrowRight") { i = Math.min(steps.length-1, i+1); show(); }
+  if (e.key === "ArrowLeft") { i = Math.max(0, i-1); show(); }
+});
+show();
+
+const analogy = [
+  ["Your app", "A customer", "Wants food (answers) but has no kitchen."],
+  ["TokenForge gateway", "Front desk and waiter", "Takes orders, checks rules, brings food out."],
+  ["API key", "Membership card", "Proves who you are so you can be billed."],
+  ["Rate limit", "Max 5 orders a minute per table", "One table cannot jam the kitchen."],
+  ["AI model", "The chef", "Does the actual work."],
+  ["GPU", "The stove", "Expensive. Paid by the hour whether busy or not."],
+  ["Streaming", "Dishes served as each is ready", "You start eating sooner."],
+  ["usage.db", "The bill", "What each table ordered and owes."],
+  ["Dashboard", "The manager's screen", "How busy, how fast, how much money."]
+];
+document.getElementById("analogy-rows").innerHTML = analogy.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("");
+
+const files = [
+  ["models.json", "The settings: which models exist, their prices, and the API keys.", "Check key, Find model"],
+  ["gateway/schemas.py", "Describes what a valid request and response look like.", "Your app"],
+  ["gateway/main.py", "The front desk itself. Every request enters here.", "The whole grey box"],
+  ["gateway/ratelimit.py", "The coin-jar rate limiter.", "Rate limit"],
+  ["gateway/backends.py", "Talks to the model: the fake one now, vLLM later.", "AI model"],
+  ["gateway/usage.py", "Saves the bill and computes stats.", "usage.db"],
+  ["gateway/static/dashboard.html", "The charts page.", "Dashboard"],
+  ["bench/benchmark.py", "Pretends to be many users at once and times them.", "Your app"],
+  ["tests/test_gateway.py", "Checks everything still works. Run with pytest -q.", "All of it"]
+];
+document.getElementById("file-rows").innerHTML = files.map(r => `<tr><td><code>${esc(r[0])}</code></td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join("");
+
+const phases = [
+  ["Phase 1 · done", "The gateway, fake models, benchmark and dashboard. You are here.", true],
+  ["Phase 2", "Real token counting, a /metrics page, retries, Docker.", false],
+  ["Phase 3", "Send easy questions to the cheap model and hard ones to the big one. Add caching.", false],
+  ["Phase 4", "Rent a GPU, run a real model with vLLM, measure the real cost per million tokens.", false],
+  ["Phase 5", "Write it up, add numbers to your resume, share the blog post.", false]
+];
+document.getElementById("phases").innerHTML = phases.map(p => `<div class="phase${p[2] ? " done" : ""}"><b>${esc(p[0])}</b><p>${esc(p[1])}</p></div>`).join("");
+
+const words = [
+  ["LLM", "Large language model, the AI that writes text (like GPT, Claude, Llama, Qwen)."],
+  ["Inference", "Using a trained model to get answers. Training teaches it; inference uses it."],
+  ["API", "A way for one program to ask another for something over the internet."],
+  ["Endpoint", "One address on an API, such as /v1/chat/completions."],
+  ["Token", "A piece of a word, about 4 letters. Models read, write and charge by tokens."],
+  ["Streaming", "Sending the answer word by word as it is made, instead of all at the end."],
+  ["TTFT", "Time to first token: the wait before anything appears."],
+  ["TPOT", "Time per output token: how fast words come after the first."],
+  ["Throughput", "Total tokens per second across all users at once."],
+  ["p50 / p95", "The typical time, and the time 1 in 20 users waits at least."],
+  ["Rate limit", "A cap on requests per minute for each key."],
+  ["GPU", "The chip that runs models fast. Rented by the hour, so wasted time costs money."],
+  ["vLLM", "Popular software that runs real models on a GPU efficiently. Used in Phase 4."],
+  ["Quantization", "Shrinking a model's numbers so it runs faster and cheaper, with a small quality cost."]
+];
+document.getElementById("glossary").innerHTML = words.map(w => `<dt>${esc(w[0])}</dt><dd>${esc(w[1])}</dd>`).join("");
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const tl = document.getElementById("timeline");
+const drawTimeline = () => {
+  const W = tl.clientWidth, H = tl.clientHeight, L = 8, R = W - 8, y = H * 0.42, h = 30;
+  const total = 305 + 40 * 27, x = ms => L + (ms / total) * (R - L);
+  const narrow = W < 420;
+  let ticks = "";
+  for (let k = 0; k < 40; k++) ticks += `<rect x="${x(305 + k*27) + 1}" y="${y}" width="${Math.max(1, x(27) - x(0) - 2)}" height="${h}" rx="1.5" fill="currentColor" opacity=".55"/>`;
+  tl.innerHTML = `<g style="color:var(--ink)">
+    <rect x="${L}" y="${y}" width="${x(305) - L - 2}" height="${h}" rx="4" fill="var(--teal)"/>
+    ${ticks}
+    <text x="${L}" y="${y - 12}" font-size="13" fill="var(--teal)" font-weight="600">${narrow ? "Reading" : "Reading the question"}</text>
+    <text x="${R}" y="${y - 12}" text-anchor="end" font-size="13" fill="currentColor">${narrow ? "Writing →" : "Writing, one token at a time (≈1.4 s total)"}</text>
+    <line x1="${L}" x2="${x(305)}" y1="${y + h + 14}" y2="${y + h + 14}" stroke="var(--teal)" stroke-width="1.5"/>
+    <text x="${(L + x(305)) / 2}" y="${y + h + 32}" text-anchor="middle" font-size="12.5" fill="var(--teal)">TTFT 305 ms</text>
+    <text x="${R}" y="${y + h + 32}" text-anchor="end" font-size="12.5" fill="var(--soft)">each block = TPOT 27 ms</text>
+  </g>`;
+};
+const ro1 = new ResizeObserver(drawTimeline); ro1.observe(tl);
+
+const pct = document.getElementById("pct");
+const times = [402,418,425,431,440,446,452,459,463,470,474,481,488,497,505,516,533,561,640,702];
+const drawPct = () => {
+  const W = pct.clientWidth, H = pct.clientHeight, L = 8, R = W - 8, base = H - 40, top = 24;
+  const bw = (R - L) / times.length, max = 720, yv = v => base - (v / max) * (base - top);
+  const bars = times.map((v, k) => {
+    const mark = k === 10 || k === 19;
+    return `<rect x="${L + k*bw + 1}" y="${yv(v)}" width="${bw - 2}" height="${base - yv(v)}" rx="2" fill="${mark ? "var(--teal)" : "var(--rule)"}"/>`;
+  }).join("");
+  const lab = (k, t) => `<text x="${L + k*bw + bw/2}" y="${base + 18}" text-anchor="middle" font-size="12.5" fill="var(--teal)" font-weight="600">${t}</text><text x="${L + k*bw + bw/2}" y="${yv(times[k]) - 6}" text-anchor="middle" font-size="12" fill="var(--ink)">${times[k]} ms</text>`;
+  pct.innerHTML = bars + lab(10, "p50") + lab(19, "p95") +
+    `<text x="${L}" y="${base + 34}" font-size="12" fill="var(--soft)">fastest</text><text x="${R}" y="${base + 34}" text-anchor="end" font-size="12" fill="var(--soft)">slowest</text>`;
+};
+const ro2 = new ResizeObserver(drawPct); ro2.observe(pct);
+}
+</script>
+</body>
+</html>

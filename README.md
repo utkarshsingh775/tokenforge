@@ -13,6 +13,9 @@ client ──► TokenForge gateway ──► mock model     (laptop, free)
            metering · cost    └─► any OpenAI-compatible API
 ```
 
+New to this? Start with **[docs/learn.html](docs/learn.html)**, a step-by-step visual guide
+(download it and open it in your browser).
+
 ## Quick start
 
 ```bash
