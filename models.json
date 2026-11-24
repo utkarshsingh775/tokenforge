@@ -1,0 +1,29 @@
+{
+  "models": {
+    "mock-small": {
+      "backend": "mock",
+      "tokens_per_sec": 120,
+      "ttft_ms": 80,
+      "price_per_1m_input": 0.10,
+      "price_per_1m_output": 0.20
+    },
+    "mock-large": {
+      "backend": "mock",
+      "tokens_per_sec": 40,
+      "ttft_ms": 300,
+      "price_per_1m_input": 0.60,
+      "price_per_1m_output": 1.20
+    },
+    "qwen-7b": {
+      "backend": "openai",
+      "base_url": "http://localhost:8000/v1",
+      "upstream_model": "Qwen/Qwen2.5-7B-Instruct",
+      "price_per_1m_input": 0.15,
+      "price_per_1m_output": 0.30
+    }
+  },
+  "api_keys": {
+    "sk-dev-123": {"name": "dev", "requests_per_minute": 60},
+    "sk-free-456": {"name": "free-tier", "requests_per_minute": 5}
+  }
+}
