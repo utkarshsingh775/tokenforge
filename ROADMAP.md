@@ -92,7 +92,8 @@ benchmark numbers; they turn into your resume bullets and blog post.
 
 ## Phase 5 — Ship and show it (1 week)
 
-1. **Dashboard**: a small Streamlit or Grafana page showing usage, cost, and latency per model.
+1. **Dashboard** ✅ done: `/dashboard`. Exercise: add a GPU-cost panel once Phase 4 runs on real hardware,
+   and a model filter for the charts.
 2. **Scale-to-zero** (stretch goal): deploy with Jarvislabs Serverless or Modal and measure cold-start time.
 3. **README polish**: architecture diagram, benchmark table, GIF demo.
 4. **Blog post**: "I built a mini inference platform: here's what made LLMs 5× cheaper."

@@ -44,3 +44,28 @@ def test_rate_limit(tmp_path):
     free = {"Authorization": "Bearer sk-free-456"}  # 5 requests/minute
     codes = [c.post("/v1/chat/completions", json=BODY, headers=free).status_code for _ in range(7)]
     assert codes[:5] == [200] * 5 and 429 in codes[5:]
+
+
+def test_stats_requires_admin_key(tmp_path):
+    c = client(tmp_path)
+    assert c.get("/v1/stats", headers={"Authorization": "Bearer sk-free-456"}).status_code == 403
+    assert c.get("/v1/stats", headers=AUTH).status_code == 200
+
+
+def test_stats_counts_success_and_rejections(tmp_path):
+    c = client(tmp_path)
+    c.post("/v1/chat/completions", json=BODY, headers=AUTH)
+    c.post("/v1/chat/completions", json=BODY, headers={"Authorization": "Bearer nope"})
+    c.post("/v1/chat/completions", json={**BODY, "model": "gpt-9"}, headers=AUTH)
+    s = c.get("/v1/stats", headers=AUTH).json()
+    assert s["totals"]["requests"] == 3
+    assert s["totals"]["successful"] == 1
+    assert s["totals"]["errors"] == 2
+    assert s["per_model"][0]["model"] == "mock-small"
+    assert sum(s["timeseries"]["series"]["mock-small"]) == 1
+    assert {r["status"] for r in s["recent"]} == {200, 401, 404}
+
+
+def test_dashboard_page_served(tmp_path):
+    r = client(tmp_path).get("/dashboard")
+    assert r.status_code == 200 and "TokenForge" in r.text

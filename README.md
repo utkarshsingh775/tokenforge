@@ -17,7 +17,7 @@ client ──► TokenForge gateway ──► mock model     (laptop, free)
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                   # 5 tests should pass
+pytest -q                                   # 8 tests should pass
 uvicorn gateway.main:app --port 9000        # start the gateway
 ```
 
@@ -31,6 +31,19 @@ curl localhost:9000/v1/chat/completions -H "Authorization: Bearer sk-dev-123" \
 python -m bench.benchmark --model mock-small --requests 40 --concurrency 8
 curl localhost:9000/v1/usage -H "Authorization: Bearer sk-dev-123"
 ```
+
+## Dashboard
+
+Open **http://localhost:9000/dashboard** while the gateway is running. It refreshes
+every 3 seconds and shows requests per minute, TTFT p50/p95, decode speed, cost per
+model, usage per API key, and a live log of recent requests, including rate-limited
+and rejected ones. It follows your system's light/dark setting.
+
+![TokenForge dashboard](docs/dashboard-light.png)
+
+The dashboard reads `GET /v1/stats`, which requires an API key with `"admin": true`
+in `models.json` (`sk-dev-123` by default). Run the benchmark in another terminal to
+watch the charts move.
 
 It also works with the official `openai` Python SDK:
 
@@ -50,6 +63,7 @@ print(client.chat.completions.create(model="mock-small",
 | `gateway/ratelimit.py` | Token-bucket rate limiter per API key |
 | `gateway/usage.py` | SQLite usage log + cost calculation |
 | `models.json` | Model registry, prices, API keys |
+| `gateway/static/dashboard.html` | Live dashboard (plain HTML + SVG, no build step) |
 | `bench/benchmark.py` | Load tester: TTFT, TPOT, p50/p95 latency, throughput |
 
 See **ROADMAP.md** for what to build next and what each phase teaches.

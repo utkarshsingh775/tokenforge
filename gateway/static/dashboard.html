@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TokenForge Dashboard</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+    --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948;
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+    --tooltip-bg: #0b0b0b; --tooltip-ink: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+      --series-5: #d55181; --series-6: #0ca30c; --series-7: #9085e9; --series-8: #e66767;
+      --tooltip-bg: #f0efec; --tooltip-ink: #0b0b0b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root {
+    min-height: 100vh; background: var(--page); color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 24px; max-width: 1280px; margin: 0 auto;
+  }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 650; }
+  h1 span { color: var(--text-secondary); font-weight: 400; }
+  .controls { display: flex; gap: 12px; align-items: center; margin-left: auto; color: var(--text-secondary); }
+  input[type=text], input[type=password] {
+    font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--axis);
+    background: var(--surface-1); color: var(--text-primary); width: 150px;
+  }
+  label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .kpi .label { color: var(--text-secondary); font-size: 13px; }
+  .kpi .value { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .kpi .sub { color: var(--text-muted); font-size: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+  .grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  @media (max-width: 1000px) { .grid3, .grid2b { grid-template-columns: 1fr; } }
+  h2 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
+  .desc { color: var(--text-secondary); font-size: 12.5px; margin: 0 0 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  svg { display: block; width: 100%; overflow: visible; }
+  svg text { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+  svg .direct { fill: var(--text-secondary); font-size: 11.5px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  th { text-align: left; color: var(--text-secondary); font-weight: 500; border-bottom: 1px solid var(--axis); padding: 6px 8px; white-space: nowrap; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  td.num, th.num { text-align: right; }
+  .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 7px; }
+  .status { display: inline-flex; align-items: center; gap: 5px; color: var(--text-primary); }
+  .status svg { width: 14px; height: 14px; display: inline; }
+  .scroll { overflow-x: auto; }
+  .empty { color: var(--text-secondary); padding: 40px 0; text-align: center; }
+  .empty code { background: var(--grid); padding: 2px 6px; border-radius: 4px; }
+  .err { color: var(--critical); margin-left: 8px; }
+  #tooltip {
+    position: fixed; pointer-events: none; background: var(--tooltip-bg); color: var(--tooltip-ink);
+    padding: 7px 10px; border-radius: 6px; font-size: 12px; line-height: 1.5; display: none; z-index: 10;
+    font-variant-numeric: tabular-nums; max-width: 260px;
+  }
+  #tooltip .t { font-weight: 600; margin-bottom: 2px; }
+  #tooltip i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <header>
+    <h1>TokenForge <span>· inference gateway</span></h1>
+    <div class="controls">
+      <label>Admin key <input id="key" type="password" autocomplete="off"></label>
+      <label><input id="auto" type="checkbox" checked> Auto-refresh</label>
+      <span id="updated"></span><span id="error" class="err"></span>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <div id="content">
+    <div class="card" style="margin-bottom:12px">
+      <h2>Requests per minute</h2>
+      <p class="desc">Successful requests by model, last 30 minutes</p>
+      <div class="legend" id="rpm-legend"></div>
+      <div id="rpm"></div>
+    </div>
+
+    <div class="grid3">
+      <div class="card">
+        <h2>Time to first token</h2>
+        <p class="desc">Bar = p50, tick = p95. Lower is better.</p>
+        <div id="ttft"></div>
+      </div>
+      <div class="card">
+        <h2>Decode speed</h2>
+        <p class="desc">Output tokens/sec after the first token. Higher is better.</p>
+        <div id="tps"></div>
+      </div>
+      <div class="card">
+        <h2>Cost by model</h2>
+        <p class="desc">Total USD billed, from prices in models.json</p>
+        <div id="cost"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px">
+      <h2>Models</h2>
+      <p class="desc">Latency percentiles, token volume and cost per model</p>
+      <div class="scroll" id="model-table"></div>
+    </div>
+
+    <div class="grid2b">
+      <div class="card">
+        <h2>API keys</h2>
+        <p class="desc">Who is using the gateway</p>
+        <div class="scroll" id="key-table"></div>
+      </div>
+      <div class="card">
+        <h2>Recent requests</h2>
+        <p class="desc">Latest 25, including rejected ones</p>
+        <div class="scroll" id="recent-table" style="max-height:340px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+  <div id="tooltip"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const tip = $("tooltip");
+const SVGNS = "http://www.w3.org/2000/svg";
+const keyInput = $("key");
+keyInput.value = localStorage.getItem("tf-admin-key") || "sk-dev-123";
+keyInput.addEventListener("change", () => { localStorage.setItem("tf-admin-key", keyInput.value); refresh(); });
+
+// Color follows the model, never its rank: slots are assigned from the
+// gateway's fixed model list (/v1/models), so they never repaint.
+let modelOrder = [];
+const colorOf = (m) => {
+  const i = modelOrder.indexOf(m);
+  return i >= 0 && i < 8 ? `var(--series-${i + 1})` : "var(--text-muted)";
+};
+
+const fmt = {
+  int: (n) => Math.round(n).toLocaleString(),
+  ms: (n) => n >= 1000 ? (n / 1000).toFixed(2) + " s" : n.toFixed(0) + " ms",
+  usd: (n) => n === 0 ? "$0" : n < 0.01 ? "$" + n.toFixed(5) : "$" + n.toFixed(2),
+  compact: (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(Math.round(n)),
+  time: (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+};
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function showTip(evt, html) {
+  tip.innerHTML = html; tip.style.display = "block";
+  const x = Math.min(evt.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+  const y = Math.min(evt.clientY + 14, window.innerHeight - tip.offsetHeight - 8);
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => (tip.style.display = "none");
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+}
+
+// ---------- Line chart: requests/minute per model ----------
+function lineChart(container, legendEl, ts) {
+  container.innerHTML = ""; legendEl.innerHTML = "";
+  const models = Object.keys(ts.series).sort((a, b) => modelOrder.indexOf(a) - modelOrder.indexOf(b));
+  if (!models.length) { container.innerHTML = '<div class="empty">No traffic yet</div>'; return; }
+  for (const m of models) legendEl.insertAdjacentHTML("beforeend", `<span><i style="background:${colorOf(m)}"></i>${esc(m)}</span>`);
+
+  const W = container.clientWidth || 700, H = 220, L = 36, R = 90, T = 10, B = 24;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img",
+    "aria-label": "Line chart of requests per minute by model" }, container);
+  const n = ts.minutes.length;
+  const max = niceMax(Math.max(1, ...models.flatMap((m) => ts.series[m])));
+  const x = (i) => L + (i / (n - 1)) * (W - L - R);
+  const y = (v) => T + (1 - v / max) * (H - T - B);
+
+  for (let k = 0; k <= 4; k++) {
+    const v = (max / 4) * k;
+    el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: k ? "var(--grid)" : "var(--axis)" }, svg);
+    el("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = fmt.compact(v);
+  }
+  for (let i = 0; i < n; i += 5) {
+    el("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, svg).textContent = fmt.time(ts.minutes[i]);
+  }
+  // Direct labels at line ends, nudged apart so they never collide.
+  const ends = models.map((m) => ({ m, y: y(ts.series[m][n - 1]) })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
+
+  for (const m of models) {
+    const d = ts.series[m].map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    el("path", { d, fill: "none", stroke: colorOf(m), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+  }
+  for (const e of ends) {
+    el("text", { x: W - R + 8, y: e.y + 4, class: "direct" }, svg).textContent = e.m;
+  }
+
+  // Crosshair + tooltip.
+  const cross = el("line", { y1: T, y2: H - B, stroke: "var(--axis)", "stroke-dasharray": "3 3", visibility: "hidden" }, svg);
+  const dots = models.map((m) => el("circle", { r: 4, fill: colorOf(m), stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" }, svg));
+  const hit = el("rect", { x: L, y: T, width: W - L - R, height: H - T - B, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", (evt) => {
+    const r = svg.getBoundingClientRect();
+    const px = ((evt.clientX - r.left) / r.width) * W;
+    const i = Math.max(0, Math.min(n - 1, Math.round(((px - L) / (W - L - R)) * (n - 1))));
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+    models.forEach((m, j) => { dots[j].setAttribute("cx", x(i)); dots[j].setAttribute("cy", y(ts.series[m][i])); dots[j].setAttribute("visibility", "visible"); });
+    showTip(evt, `<div class="t">${fmt.time(ts.minutes[i])}</div>` +
+      models.map((m) => `<div><i style="background:${colorOf(m)}"></i>${esc(m)}: ${ts.series[m][i]} req</div>`).join(""));
+  });
+  hit.addEventListener("mouseleave", () => { cross.setAttribute("visibility", "hidden"); dots.forEach((d) => d.setAttribute("visibility", "hidden")); hideTip(); });
+}
+
+// ---------- Horizontal bar chart (one bar per model) ----------
+function barChart(container, rows, valueKey, fmtFn, opts = {}) {
+  container.innerHTML = "";
+  if (!rows.length) { container.innerHTML = '<div class="empty">No data yet</div>'; return; }
+  const W = container.clientWidth || 380, bar = 18, gap = 14, L = 84, R = 66, T = 4;
+  const H = T + rows.length * (bar + gap) + 18;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": opts.label || "Bar chart" }, container);
+  const max = niceMax(Math.max(...rows.map((r) => Math.max(r[valueKey], opts.tickKey ? r[opts.tickKey] : 0))));
+  const x = (v) => L + (v / max) * (W - L - R);
+  for (let k = 0; k <= 4; k++) {
+    const v = (max / 4) * k;
+    el("line", { x1: x(v), x2: x(v), y1: T, y2: H - 18, stroke: k ? "var(--grid)" : "var(--axis)" }, svg);
+    el("text", { x: x(v), y: H - 4, "text-anchor": "middle" }, svg).textContent = opts.axisFmt ? opts.axisFmt(v) : fmt.compact(v);
+  }
+  rows.forEach((r, i) => {
+    const y0 = T + i * (bar + gap);
+    el("text", { x: L - 8, y: y0 + bar / 2 + 4, "text-anchor": "end", class: "direct" }, svg).textContent = r.model;
+    const w = Math.max(2, x(r[valueKey]) - L);
+    // Bar anchored to baseline, 4px rounding on the data end only.
+    const rad = Math.min(4, w);
+    el("path", { d: `M${L},${y0} h${w - rad} a${rad},${rad} 0 0 1 ${rad},${rad} v${bar - 2 * rad} a${rad},${rad} 0 0 1 -${rad},${rad} h-${w - rad} z`, fill: colorOf(r.model) }, svg);
+    let labelX = L + w;
+    if (opts.tickKey) {
+      const tx = x(r[opts.tickKey]);
+      el("line", { x1: tx, x2: tx, y1: y0 - 3, y2: y0 + bar + 3, stroke: "var(--text-primary)", "stroke-width": 2, "stroke-linecap": "round" }, svg);
+      labelX = Math.max(labelX, tx);
+    }
+    el("text", { x: labelX + 8, y: y0 + bar / 2 + 4, class: "direct" }, svg).textContent = fmtFn(r[valueKey]);
+    const hit = el("rect", { x: 0, y: y0 - gap / 2, width: W, height: bar + gap, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (evt) => showTip(evt, `<div class="t"><i style="background:${colorOf(r.model)}"></i>${esc(r.model)}</div>` + opts.tip(r)));
+    hit.addEventListener("mouseleave", hideTip);
+  });
+}
+
+// ---------- Status chip: icon + label, never color alone ----------
+function statusChip(code) {
+  if (code === 200) return `<span class="status"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="var(--good)"/><path d="M4.5 8.2l2.3 2.3 4.7-4.9" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>200 OK</span>`;
+  if (code === 429) return `<span class="status"><svg viewBox="0 0 16 16"><path d="M8 1.5l7 13H1z" fill="var(--warning)"/><path d="M8 6v4" stroke="#0b0b0b" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="12.2" r="1" fill="#0b0b0b"/></svg>429 rate limited</span>`;
+  const label = { 401: "401 bad key", 404: "404 no model" }[code] || code + " error";
+  return `<span class="status"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="var(--critical)"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>${label}</span>`;
+}
+
+function table(container, cols, rows) {
+  container.innerHTML = rows.length ? `<table><thead><tr>${cols.map((c) => `<th class="${c.num ? "num" : ""}">${c.h}</th>`).join("")}</tr></thead><tbody>` +
+    rows.map((r) => `<tr>${cols.map((c) => `<td class="${c.num ? "num" : ""}">${c.f(r)}</td>`).join("")}</tr>`).join("") + "</tbody></table>"
+    : '<div class="empty">No data yet</div>';
+}
+const modelCell = (m) => m === "-" ? '<span style="color:var(--text-muted)">—</span>' : `<span class="swatch" style="background:${colorOf(m)}"></span>${esc(m)}`;
+
+function render(s) {
+  const t = s.totals;
+  const errPct = t.requests ? ((t.errors / t.requests) * 100).toFixed(1) : "0.0";
+  $("kpis").innerHTML = [
+    ["Requests", fmt.int(t.requests), `${fmt.int(t.successful)} successful`],
+    ["Tokens processed", fmt.compact(t.tokens), "prompt + completion"],
+    ["Total cost", fmt.usd(t.cost_usd), "across all keys"],
+    ["TTFT p50", t.successful ? fmt.ms(t.ttft_p50_ms) : "—", "time to first token"],
+    ["Rejected", fmt.int(t.errors), `${errPct}% · ${fmt.int(t.rate_limited)} rate limited`],
+  ].map(([l, v, sub]) => `<div class="card kpi"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join("");
+
+  const pm = [...s.per_model].sort((a, b) => modelOrder.indexOf(a.model) - modelOrder.indexOf(b.model));
+  lineChart($("rpm"), $("rpm-legend"), s.timeseries);
+  barChart($("ttft"), pm, "ttft_p50_ms", fmt.ms, { tickKey: "ttft_p95_ms", label: "TTFT by model", axisFmt: (v) => fmt.compact(v),
+    tip: (r) => `<div>p50: ${fmt.ms(r.ttft_p50_ms)}</div><div>p95: ${fmt.ms(r.ttft_p95_ms)}</div><div>${fmt.int(r.requests)} requests</div>` });
+  barChart($("tps"), pm, "decode_tokens_per_sec", (v) => v.toFixed(0) + " tok/s", { label: "Decode speed by model",
+    tip: (r) => `<div>${r.decode_tokens_per_sec} tokens/sec</div><div>${fmt.int(r.completion_tokens)} output tokens</div>` });
+  barChart($("cost"), pm, "cost_usd", fmt.usd, { label: "Cost by model", axisFmt: (v) => v === 0 ? "$0" : "$" + (v < 0.01 ? +v.toPrecision(2) : v.toFixed(2)),
+    tip: (r) => `<div>${fmt.usd(r.cost_usd)} total</div><div>${r.requests ? fmt.usd(r.cost_usd / r.requests) : "$0"} per request</div>` });
+
+  table($("model-table"), [
+    { h: "Model", f: (r) => modelCell(r.model) },
+    { h: "Requests", num: 1, f: (r) => fmt.int(r.requests) },
+    { h: "Prompt tok", num: 1, f: (r) => fmt.int(r.prompt_tokens) },
+    { h: "Output tok", num: 1, f: (r) => fmt.int(r.completion_tokens) },
+    { h: "TTFT p50", num: 1, f: (r) => fmt.ms(r.ttft_p50_ms) },
+    { h: "TTFT p95", num: 1, f: (r) => fmt.ms(r.ttft_p95_ms) },
+    { h: "E2E p50", num: 1, f: (r) => fmt.ms(r.e2e_p50_ms) },
+    { h: "E2E p95", num: 1, f: (r) => fmt.ms(r.e2e_p95_ms) },
+    { h: "Decode tok/s", num: 1, f: (r) => r.decode_tokens_per_sec.toFixed(1) },
+    { h: "Cost", num: 1, f: (r) => fmt.usd(r.cost_usd) },
+  ], pm);
+  table($("key-table"), [
+    { h: "Key", f: (r) => esc(r.key) },
+    { h: "Requests", num: 1, f: (r) => fmt.int(r.requests) },
+    { h: "Rejected", num: 1, f: (r) => fmt.int(r.errors) },
+    { h: "Tokens", num: 1, f: (r) => fmt.compact(r.tokens) },
+    { h: "Cost", num: 1, f: (r) => fmt.usd(r.cost) },
+  ], s.per_key);
+  table($("recent-table"), [
+    { h: "Time", f: (r) => new Date(r.ts * 1000).toLocaleTimeString() },
+    { h: "Key", f: (r) => esc(r.key) },
+    { h: "Model", f: (r) => modelCell(r.model) },
+    { h: "Status", f: (r) => statusChip(r.status) },
+    { h: "Tokens", num: 1, f: (r) => r.status === 200 ? fmt.int(r.prompt_tokens + r.completion_tokens) : "—" },
+    { h: "TTFT", num: 1, f: (r) => r.status === 200 ? fmt.ms(r.ttft_ms) : "—" },
+    { h: "Total", num: 1, f: (r) => r.status === 200 ? fmt.ms(r.total_ms) : "—" },
+  ], s.recent);
+}
+
+async function refresh() {
+  try {
+    if (!modelOrder.length) {
+      const m = await fetch("/v1/models").then((r) => r.json());
+      modelOrder = m.data.map((d) => d.id);
+    }
+    const r = await fetch("/v1/stats", { headers: { Authorization: "Bearer " + keyInput.value } });
+    if (!r.ok) throw new Error(r.status === 403 ? "Admin key required" : "HTTP " + r.status);
+    render(await r.json());
+    $("error").textContent = "";
+    $("updated").textContent = "Updated " + new Date().toLocaleTimeString();
+  } catch (e) {
+    $("error").textContent = e.message;
+  }
+}
+refresh();
+setInterval(() => $("auto").checked && document.visibilityState === "visible" && refresh(), 3000);
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(refresh, 200); });
+</script>
+</body>
+</html>
